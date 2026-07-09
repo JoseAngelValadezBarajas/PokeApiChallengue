@@ -1,0 +1,17 @@
+node_modules
+coverage
+dist
+.next
+.env
+.env.local
+.env.production
+npm-debug.log*
+.DS_Store
+apps/api/dist
+apps/web/.next
+
+*.md
+infra/terraform/.terraform/
+.terraform/
+*.tfstate
+*.tfstate.*

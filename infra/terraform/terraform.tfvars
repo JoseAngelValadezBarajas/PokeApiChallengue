@@ -1,0 +1,11 @@
+aws_region           = "us-west-1"
+project_name         = "pokemon-app"
+environment          = "dev"
+api_image_uri        = "680604704829.dkr.ecr.us-west-1.amazonaws.com/pokemon-app-api:latest"
+api_container_port   = 4000
+api_desired_count    = 1
+api_cpu              = 512
+api_memory           = 1024
+pokeapi_base_url     = "https://pokeapi.co/api/v2"
+cache_ttl_seconds    = 3600
+allowed_cors_origins = "https://poke-api-challengue-web.vercel.app"

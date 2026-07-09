@@ -1,0 +1,32 @@
+services:
+  api:
+    build:
+      context: ./apps/api
+    ports:
+      - '4000:4000'
+    env_file:
+      - ./apps/api/.env.example
+    environment:
+      PORT: 4000
+      NODE_ENV: development
+      POKEAPI_BASE_URL: https://pokeapi.co/api/v2
+      CACHE_TTL_SECONDS: 3600
+      ALLOWED_CORS_ORIGINS: http://localhost:3000
+    volumes:
+      - ./apps/api/src:/app/src
+    command: npm run dev
+
+  web:
+    build:
+      context: ./apps/web
+    ports:
+      - '3000:3000'
+    env_file:
+      - ./apps/web/.env.example
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:4000
+    volumes:
+      - ./apps/web/src:/app/src
+    command: npm run dev
+    depends_on:
+      - api

@@ -1,0 +1,24 @@
+{
+  "name": "pokemon-app",
+  "private": true,
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "install:all": "npm install",
+    "dev": "concurrently -k \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm run dev --workspace apps/api",
+    "dev:web": "npm run dev --workspace apps/web",
+    "build": "npm run build --workspace apps/api && npm run build --workspace apps/web",
+    "test": "npm run test --workspace apps/api && npm run test --workspace apps/web",
+    "lint": "npm run lint --workspace apps/api && npm run lint --workspace apps/web",
+    "format": "prettier --write \"apps/**/*.{ts,tsx,js,json,md,cjs}\" \"*.{ts,tsx,js,json,md,cjs}\" \"infra/**/*.ts\"",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "prettier": "^3.6.2"
+  }
+}
