@@ -21,11 +21,10 @@ export class PokemonController {
   }
 
   /**
-   * Retrieve all Pokémon with their normalized data (name, types, image).
+   * Retrieve the full list of Pokémon with normalized data (name, types, image).
    * Delegates to GetPokemonsUseCase which handles caching and sync logic.
-   * If the use case fails, returns a controlled 502 error.
    *
-   * @returns A plain array of Pokémon objects containing name, types, and image URL.
+   * @returns Array of all Pokémon objects.
    * @throws AppError with status 502 if data cannot be retrieved.
    */
   async getPokemons() {

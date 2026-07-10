@@ -31,9 +31,9 @@ describe('pokemon routes', () => {
 
     const response = await app.inject({ method: 'GET', url: '/pokemons' });
     expect(response.statusCode).toBe(200);
-    expect(Array.isArray(response.json())).toBe(true);
     expect(response.json()).toEqual(pokemons);
     expect(execute).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledWith();
 
     await app.close();
   });

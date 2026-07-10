@@ -37,6 +37,26 @@ export function PokemonTypeFilter({
         label={PokemonUIMessages.TYPE_FILTER_LABEL}
         value={selectedType}
         onChange={(event) => onSelectedTypeChange(String(event.target.value))}
+        MenuProps={{
+          anchorOrigin: {
+            vertical: 'bottom',
+            horizontal: 'left',
+          },
+          transformOrigin: {
+            vertical: 'top',
+            horizontal: 'left',
+          },
+          PaperProps: {
+            sx: {
+              // Keep dropdown fully opaque so background cards do not bleed through.
+              backgroundColor: '#1f2937',
+              backgroundImage: 'none',
+              backdropFilter: 'none',
+              border: '1px solid rgba(255,255,255,0.16)',
+              mt: 0.5,
+            },
+          },
+        }}
       >
         {/* "All types" option */}
         <MenuItem value={PokemonUIDefaults.ALL_TYPES}>All types</MenuItem>

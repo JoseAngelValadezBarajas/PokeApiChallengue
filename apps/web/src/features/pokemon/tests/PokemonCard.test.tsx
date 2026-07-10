@@ -22,4 +22,21 @@ describe('PokemonCard', () => {
     expect(screen.getByText('fire')).toBeInTheDocument();
     expect(screen.getByText('flying')).toBeInTheDocument();
   });
+
+  it('uses placeholder image when pokemon image is empty', () => {
+    render(
+      <PokemonCard
+        pokemon={{
+          name: 'missingno',
+          types: ['normal'],
+          image: '',
+        }}
+      />,
+    );
+
+    expect(screen.getByAltText('missingno')).toHaveAttribute(
+      'src',
+      expect.stringContaining('/pokemon-placeholder.svg'),
+    );
+  });
 });

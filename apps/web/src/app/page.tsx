@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { Box, Container, Typography } from '@mui/material';
 import { ErrorState } from '../features/pokemon/components/ErrorState';
 import { EmptyState } from '../features/pokemon/components/EmptyState';
@@ -12,17 +13,46 @@ export default function HomePage() {
   const {
     visiblePokemons,
     loading,
+    isLoadingMore,
+    hasNextPage,
     error,
     search,
     selectedType,
     availableTypes,
     visibleCount,
     loadedCount,
+    totalCount,
     setSearch,
     setSelectedType,
     clearFilters,
+    loadMore,
     retry,
   } = usePokemons();
+
+  const lazyLoadSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!lazyLoadSentinelRef.current || loading || error || isLoadingMore || !hasNextPage) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          void loadMore();
+        }
+      },
+      {
+        rootMargin: '300px',
+      },
+    );
+
+    observer.observe(lazyLoadSentinelRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [error, hasNextPage, isLoadingMore, loadMore, loading]);
 
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 3, md: 6 }, position: 'relative', zIndex: 1 }}>
@@ -51,6 +81,7 @@ export default function HomePage() {
         availableTypes={availableTypes}
         visibleCount={visibleCount}
         loadedCount={loadedCount}
+        totalCount={totalCount}
         onSearchChange={setSearch}
         onSelectedTypeChange={setSelectedType}
         onClearFilters={clearFilters}
@@ -61,7 +92,15 @@ export default function HomePage() {
         {!loading && error ? <ErrorState message={error} onRetry={retry} /> : null}
         {!loading && !error && visiblePokemons.length === 0 ? <EmptyState /> : null}
         {!loading && !error && visiblePokemons.length > 0 ? (
-          <PokemonGrid pokemons={visiblePokemons} />
+          <>
+            <PokemonGrid pokemons={visiblePokemons} />
+            {isLoadingMore ? (
+              <Typography sx={{ mt: 3, textAlign: 'center', color: 'text.secondary' }}>
+                Loading more Pokémon...
+              </Typography>
+            ) : null}
+            {hasNextPage ? <Box ref={lazyLoadSentinelRef} data-testid="lazy-load-sentinel" sx={{ height: 1, mt: 2 }} /> : null}
+          </>
         ) : null}
       </Box>
     </Container>

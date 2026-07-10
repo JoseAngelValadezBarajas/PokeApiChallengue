@@ -89,4 +89,34 @@ describe('SyncPokemonsUseCase', () => {
 
     await expect(useCase.execute()).rejects.toThrow('API down');
   });
+
+  it('deduplicates concurrent calls and only fetches once', async () => {
+    const pokeApiClient = {
+      getPokemonCount: vi.fn().mockResolvedValue(1),
+      getPokemonList: vi.fn().mockResolvedValue({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [{ name: 'bulbasaur', url: 'https://pokeapi.co/api/v2/pokemon/1' }],
+      }),
+      getPokemonDetail: vi.fn().mockResolvedValue({
+        id: 1,
+        name: 'bulbasaur',
+        types: [{ slot: 1, type: { name: 'grass' } }],
+        sprites: { front_default: 'image.png', other: {} },
+      }),
+    } as const;
+
+    const useCase = new SyncPokemonsUseCase({
+      pokeApiClient: pokeApiClient as never,
+      pokemonRepository: repository,
+      concurrency: 1,
+    });
+
+    // Fire two concurrent executions — should share the same in-flight promise.
+    const [first, second] = await Promise.all([useCase.execute(), useCase.execute()]);
+
+    expect(first).toEqual(second);
+    expect(pokeApiClient.getPokemonCount).toHaveBeenCalledTimes(1);
+  });
 });

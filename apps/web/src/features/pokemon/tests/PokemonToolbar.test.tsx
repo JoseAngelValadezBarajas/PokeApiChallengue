@@ -14,6 +14,7 @@ function ToolbarHarness() {
       availableTypes={['fire']}
       visibleCount={1}
       loadedCount={1}
+      totalCount={2}
       onSearchChange={setSearch}
       onSelectedTypeChange={vi.fn()}
       onClearFilters={vi.fn()}

@@ -2,14 +2,16 @@
 
 A production-quality Pokémon take-home project built as a TypeScript monorepo with a Fastify backend, a Next.js + MUI frontend, Docker local development, and AWS/Terraform deployment coverage.
 
-The backend returns all available Pokémon from PokeAPI through a single endpoint, caches the normalized read model, and exposes only the data the frontend needs.
+The backend serves the complete Pokémon catalog from PokeAPI through a single endpoint, caches a normalized read model, and exposes only the data the frontend needs.
 
 ## Assignment Requirements Covered
 
-- A backend endpoint at `GET /pokemons` that returns a plain array.
+- A backend endpoint at `GET /pokemons` that returns the complete Pokémon catalog as a flat array in a single API call.
 - A `GET /health` endpoint for basic readiness checks.
+
+> **Dataset count:** The assignment references 1,302 Pokémon. However, PokeAPI currently reports 1,351 entries. The implementation retrieves the count dynamically to ensure that all currently available Pokémon are returned without hardcoding a potentially outdated total.
 - Backend fetches all available Pokémon using PokeAPI dynamically, without hardcoding the total count.
-- Each Pokémon response includes only `name`, `types`, and `image`.
+- Each Pokémon item includes only `name`, `types`, and `image`.
 - Frontend consumes only the backend endpoint and never calls PokeAPI directly.
 - The full app runs locally.
 - The backend is written with Node.js, TypeScript, and Fastify.
@@ -128,7 +130,7 @@ Returns:
 
 ### `GET /pokemons`
 
-Returns a plain array in the required shape:
+Returns the full list of Pokémon as a flat array:
 
 ```json
 [
@@ -142,10 +144,11 @@ Returns a plain array in the required shape:
 
 Important details:
 
-- The response is a plain array.
-- The backend returns all available Pokémon in one API call to the frontend.
+- Returns all Pokémon in a single call (no pagination parameters).
+- Each object contains only `name`, `types`, and `image`.
 - The backend uses PokeAPI internally.
 - The frontend never calls PokeAPI directly.
+- Client-side pagination is handled by the frontend.
 
 ## Frontend Features
 
@@ -164,13 +167,22 @@ Important details:
 ## How to Run Locally
 
 1. Install dependencies.
-2. Copy the example environment files.
-3. Start the backend and frontend.
+2. Start the backend and frontend.
 
 ```bash
 npm run install:all
 npm run dev
 ```
+
+Committed development env files are included, so a fresh clone works without extra steps:
+
+- `apps/api/.env.development`
+- `apps/web/.env.development`
+
+Optional per-machine overrides (git-ignored):
+
+- `apps/api/.env.local`
+- `apps/web/.env.local`
 
 Or run each app separately:
 
@@ -183,6 +195,12 @@ npm run dev:web
 
 ```bash
 npm run docker:up
+```
+
+Stop containers:
+
+```bash
+npm run docker:down
 ```
 
 Local URLs:
@@ -210,6 +228,16 @@ npm run format
 ```
 
 ## Environment Variables
+
+Tracked development files (safe to commit):
+
+- `apps/api/.env.development`
+- `apps/web/.env.development`
+
+Optional local overrides (ignored by git):
+
+- `apps/api/.env.local`
+- `apps/web/.env.local`
 
 ### API
 
@@ -241,123 +269,35 @@ The backend does not fetch Pokémon details sequentially. It uses a concurrency-
 
 ## AWS Deployment Instructions
 
-The backend is containerized and designed for ECS Fargate behind an ALB. Follow these steps to deploy:
+The backend is containerized and designed for ECS Fargate behind ALB + CloudFront.
 
-### 1. Build and Push Docker Image to ECR
+Use the detailed guide in `infra/terraform/README.md` for the full flow.
 
-```bash
-# Login to AWS ECR
-aws ecr get-login-password --region <AWS_REGION> | docker login --username AWS --password-stdin <ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com
+Quick summary:
 
-# Build the backend Docker image
-docker build -t pokemon-app-api:latest apps/api
+1. Configure AWS CLI and Terraform backend (S3 + DynamoDB lock table).
+2. Create ECR repository (first time).
+3. Get these values before ECR login:
+	 - `ACCOUNT_ID`: `aws sts get-caller-identity --query Account --output text`
+	 - `AWS_REGION`: `aws configure get region`
+	 - `ECR_REPOSITORY_URL`: `terraform output -raw ecr_repository_url`
+4. Authenticate Docker to ECR and push backend image.
+5. Apply Terraform with `api_image_uri`.
+6. Use `cloudfront_api_url` as frontend `NEXT_PUBLIC_API_BASE_URL`.
 
-# Create ECR repository (if not already created by Terraform)
-aws ecr create-repository --repository-name pokemon-app-api --region <AWS_REGION>
-
-# Tag the image with ECR URI
-docker tag pokemon-app-api:latest <ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/pokemon-app-api:latest
-
-# Push to ECR
-docker push <ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/pokemon-app-api:latest
-```
-
-### 2. Configure Terraform Variables
-
-Create `infra/terraform/terraform.tfvars`:
-
-```hcl
-aws_region               = "<AWS_REGION>"
-project_name             = "pokemon-app"
-environment              = "dev"
-api_image_uri            = "<ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/pokemon-app-api:latest"
-api_container_port       = 4000
-api_desired_count        = 1
-api_cpu                  = 256
-api_memory               = 512
-pokeapi_base_url         = "https://pokeapi.co/api/v2"
-cache_ttl_seconds        = 3600
-allowed_cors_origins     = "https://temp.example.com"
-```
-
-### 3. (Recommended) Configure Remote Terraform State (S3 + DynamoDB)
-
-Use remote state to avoid losing state files and to prevent concurrent `terraform apply` conflicts.
-
-Create these backend resources first:
+Example ECR login (do not run `docker login --password-stdin` alone):
 
 ```bash
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-AWS_REGION=<AWS_REGION>
-TFSTATE_BUCKET=pokemon-app-tfstate-${ACCOUNT_ID}-${AWS_REGION}
-TFSTATE_LOCK_TABLE=pokemon-app-terraform-locks
-
-aws s3api create-bucket \
-  --bucket "$TFSTATE_BUCKET" \
-  --region "$AWS_REGION" \
-  --create-bucket-configuration LocationConstraint="$AWS_REGION"
-
-aws s3api put-bucket-versioning \
-  --bucket "$TFSTATE_BUCKET" \
-  --versioning-configuration Status=Enabled
-
-aws dynamodb create-table \
-  --table-name "$TFSTATE_LOCK_TABLE" \
-  --attribute-definitions AttributeName=LockID,AttributeType=S \
-  --key-schema AttributeName=LockID,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST \
-  --region "$AWS_REGION"
+aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
 ```
 
-Ensure `infra/terraform/backend.tf` exists with:
-
-```hcl
-terraform {
-  backend "s3" {}
-}
-```
-
-### 4. Initialize Terraform (choose one scenario)
-
-#### Scenario A: Fresh deployment (no existing local state)
+Get outputs after apply:
 
 ```bash
 cd infra/terraform
-terraform init \
-  -backend-config="bucket=<TFSTATE_BUCKET>" \
-  -backend-config="key=dev/terraform.tfstate" \
-  -backend-config="region=<AWS_REGION>" \
-  -backend-config="dynamodb_table=<TFSTATE_LOCK_TABLE>" \
-  -backend-config="encrypt=true"
-
-terraform plan
-terraform apply
+terraform output
+terraform output cloudfront_api_url
 ```
-
-#### Scenario B: Existing deployment with local `terraform.tfstate`
-
-```bash
-cd infra/terraform
-terraform init -migrate-state \
-  -backend-config="bucket=<TFSTATE_BUCKET>" \
-  -backend-config="key=dev/terraform.tfstate" \
-  -backend-config="region=<AWS_REGION>" \
-  -backend-config="dynamodb_table=<TFSTATE_LOCK_TABLE>" \
-  -backend-config="encrypt=true"
-
-terraform plan
-terraform apply
-```
-
-Quick mapping:
-
-- `TFSTATE_BUCKET`: S3 bucket that stores `terraform.tfstate`.
-- `TFSTATE_LOCK_TABLE`: DynamoDB table used for state lock.
-- `key`: file path inside S3 (for example `dev/terraform.tfstate`).
-
-### 5. Retrieve CloudFront URL
-
-After `terraform apply`, the CloudFront domain name will be displayed in outputs. Use this URL to configure the frontend.
 
 ## Terraform Notes
 
@@ -390,6 +330,9 @@ The frontend is deployable to Vercel. Two options are available:
    - **Output Directory**: `.next`
 4. Add environment variables:
    - `NEXT_PUBLIC_API_BASE_URL`: Set to your CloudFront distribution URL (e.g., `https://d1234567890.cloudfront.net`)
+	  - Get it from Terraform output:
+		 - `cd infra/terraform`
+		 - `terraform output -raw cloudfront_api_url`
 5. Deploy
 
 ### Option 2: Using vercel.json (Automated)
@@ -446,7 +389,7 @@ aws cloudfront create-invalidation --distribution-id <DISTRIBUTION_ID> --paths "
 - Add Redis for distributed cache persistence in production
 - Add request tracing and distributed tracing (X-Ray)
 - Add CloudWatch metrics and alarms for monitoring
-- Add pagination or virtualized rendering if the dataset grows beyond 1000+ Pokémon
+- Add virtualized rendering in frontend for very large datasets
 - Add a more robust image fallback strategy if PokeAPI artwork is unavailable
 - Add CI/CD workflows (GitHub Actions, GitLab CI) for automated lint, tests, image builds, and Terraform validation
 - Add automated scaling policies to ECS service based on CPU/memory metrics

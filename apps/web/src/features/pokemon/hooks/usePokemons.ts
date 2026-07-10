@@ -8,27 +8,39 @@ import { PokemonUIDefaults } from '../constants/ui-messages';
 interface UsePokemonsResult {
   visiblePokemons: Pokemon[];
   loading: boolean;
+  isLoadingMore: boolean;
+  hasNextPage: boolean;
   error: string | null;
   search: string;
   selectedType: string;
   availableTypes: string[];
   visibleCount: number;
   loadedCount: number;
+  totalCount: number;
   setSearch: (search: string) => void;
   setSelectedType: (type: string) => void;
   clearFilters: () => void;
+  loadMore: () => Promise<void>;
   retry: () => void;
 }
+
+const PAGE_LIMIT = 48;
 
 /**
  * Custom hook for managing Pokémon data and filtering logic.
  *
  * Responsibilities:
- * - Fetch all Pokémon from backend on mount via fetchPokemons().
- * - Maintain internal state: pokemons (raw data), loading, error, search, selectedType.
+ * - Fetch all Pokémon from the backend on mount via fetchPokemons().
+ * - Maintain internal state: pokemons (full list), loading, error, search, selectedType.
  * - Compute derived state: availableTypes (unique types from all Pokémon),
- *   visiblePokemons (filtered by search + type), visibleCount, loadedCount.
- * - Provide filter methods: setSearch, setSelectedType, clearFilters, retry.
+ *   filteredPokemons (filtered by search + type), visiblePokemons (paginated client-side slice).
+ * - Provide filter methods: setSearch, setSelectedType, clearFilters, loadMore, retry.
+ *
+ * Pagination Strategy:
+ * - All Pokémon are loaded from the backend in a single request.
+ * - Client-side pagination controls how many filtered results are rendered at once.
+ * - loadMore expands the visible window without triggering additional network requests.
+ * - Filter changes reset the visible window to the first page.
  *
  * Filtering Strategy:
  * - Search: case-insensitive substring match on pokemon.name
@@ -39,13 +51,22 @@ interface UsePokemonsResult {
  */
 export function usePokemons(): UsePokemonsResult {
   const [pokemons, setPokemons] = useState<Pokemon[]>([]);
+  const [visiblePageSize, setVisiblePageSize] = useState(PAGE_LIMIT);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [selectedType, setSelectedType] = useState<string>(PokemonUIDefaults.ALL_TYPES);
+  const [search, setSearchState] = useState('');
+  const [selectedType, setSelectedTypeState] = useState<string>(PokemonUIDefaults.ALL_TYPES);
 
   /**
-   * Load Pokémon data from the backend.
+   * Normalize unknown thrown values into a user-friendly message.
+   */
+  const getErrorMessage = useCallback(
+    (loadError: unknown) => (loadError instanceof Error ? loadError.message : 'Unknown error'),
+    [],
+  );
+
+  /**
+   * Load all Pokémon data from the backend.
    * Sets loading state, clears previous errors, and handles exceptions.
    */
   const loadPokemons = useCallback(async () => {
@@ -56,11 +77,11 @@ export function usePokemons(): UsePokemonsResult {
       const data = await fetchPokemons();
       setPokemons(data);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Unknown error');
+      setError(getErrorMessage(loadError));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [getErrorMessage]);
 
   // Load Pokémon on component mount (empty dependency array).
   useEffect(() => {
@@ -80,7 +101,7 @@ export function usePokemons(): UsePokemonsResult {
    * Filter Pokémon based on search and type filters.
    * Applied only when pokemons, search, or selectedType changes.
    */
-  const visiblePokemons = useMemo(() => {
+  const filteredPokemons = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
 
     return pokemons.filter((pokemon) => {
@@ -95,25 +116,67 @@ export function usePokemons(): UsePokemonsResult {
   }, [pokemons, search, selectedType]);
 
   /**
-   * Clear all active filters (search and type selection).
+   * Slice filtered results to the current visible page size.
+   */
+  const visiblePokemons = useMemo(
+    () => filteredPokemons.slice(0, visiblePageSize),
+    [filteredPokemons, visiblePageSize],
+  );
+
+  const hasNextPage = useMemo(
+    () => visiblePokemons.length < filteredPokemons.length,
+    [visiblePokemons.length, filteredPokemons.length],
+  );
+
+  /**
+   * Expand the visible window by one page (client-side, no network request).
+   */
+  const loadMore = useCallback(async () => {
+    if (!hasNextPage) return;
+    setVisiblePageSize((prev) => prev + PAGE_LIMIT);
+  }, [hasNextPage]);
+
+  /**
+   * Update search and reset visible page so results start from the beginning.
+   */
+  const setSearch = useCallback((newSearch: string) => {
+    setSearchState(newSearch);
+    setVisiblePageSize(PAGE_LIMIT);
+  }, []);
+
+  /**
+   * Update type filter and reset visible page so results start from the beginning.
+   */
+  const setSelectedType = useCallback((newType: string) => {
+    setSelectedTypeState(newType);
+    setVisiblePageSize(PAGE_LIMIT);
+  }, []);
+
+  /**
+   * Clear all active filters (search and type selection) and reset visible page.
    */
   const clearFilters = useCallback(() => {
-    setSearch('');
-    setSelectedType(PokemonUIDefaults.ALL_TYPES);
+    setSearchState('');
+    setSelectedTypeState(PokemonUIDefaults.ALL_TYPES);
+    setVisiblePageSize(PAGE_LIMIT);
   }, []);
 
   return {
     visiblePokemons,
     loading,
+    isLoadingMore: false,
+    hasNextPage,
     error,
     search,
     selectedType,
     availableTypes,
     visibleCount: visiblePokemons.length,
     loadedCount: pokemons.length,
+    totalCount: pokemons.length,
     setSearch,
     setSelectedType,
     clearFilters,
+    loadMore,
     retry: loadPokemons,
   };
 }

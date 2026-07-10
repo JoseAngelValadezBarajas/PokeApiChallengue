@@ -25,6 +25,17 @@ describe('PokemonController', () => {
     await expect(controller.getPokemons()).resolves.toEqual(pokemons);
   });
 
+  it('getPokemons calls use case execute with no arguments', async () => {
+    const useCase = {
+      execute: vi.fn().mockResolvedValue(pokemons),
+    } as unknown as GetPokemonsUseCase;
+    const controller = new PokemonController(useCase);
+
+    await controller.getPokemons();
+
+    expect(useCase.execute).toHaveBeenCalledWith();
+  });
+
   it('getPokemons re-throws AppError from use case', async () => {
     const appError = new AppError('Unavailable', 502, 'POKEAPI_UNAVAILABLE');
     const useCase = {

@@ -6,7 +6,7 @@ import type { PokemonController } from './pokemon.controller.js';
  *
  * Routes:
  * - GET /health: Simple health check, returns { status: 'ok' }
- * - GET /pokemons: Fetch all Pokémon with normalized data (name, types, image)
+ * - GET /pokemons: Fetch the full list of Pokémon with normalized data
  *
  * All routes delegate to the controller, which delegates to use cases.
  * This keeps routing logic separate from business logic.
@@ -21,6 +21,6 @@ export async function pokemonRoutes(
   // Health check endpoint for service availability and readiness probes.
   app.get('/health', async () => controller.getHealth());
 
-  // Fetch all Pokémon with applied filters and caching.
+  // Fetch the complete Pokémon list.
   app.get('/pokemons', async () => controller.getPokemons());
 }

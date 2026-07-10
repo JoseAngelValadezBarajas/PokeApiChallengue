@@ -35,7 +35,7 @@ export class GetPokemonsUseCase {
   /**
    * Execute the cache-aside retrieval logic.
    *
-   * @returns A plain array of normalized Pokémon with name, types, and image.
+   * @returns The full list of Pokémon.
    * @throws AppError if data cannot be retrieved and no cache fallback exists.
    */
   async execute(): Promise<Pokemon[]> {
@@ -47,8 +47,7 @@ export class GetPokemonsUseCase {
 
     // Refresh path: sync from PokeAPI if cache is empty.
     try {
-      const pokemons = await this.options.syncPokemonsUseCase.execute();
-      return pokemons;
+      return await this.options.syncPokemonsUseCase.execute();
     } catch (error) {
       // Resilience: if sync fails but old cache exists, serve stale data.
       if (cachedPokemons && cachedPokemons.length > 0) {

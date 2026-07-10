@@ -8,6 +8,7 @@ interface PokemonToolbarProps {
   availableTypes: string[];
   visibleCount: number;
   loadedCount: number;
+  totalCount: number;
   onSearchChange: (value: string) => void;
   onSelectedTypeChange: (value: string) => void;
   onClearFilters: () => void;
@@ -41,6 +42,7 @@ export function PokemonToolbar({
   availableTypes,
   visibleCount,
   loadedCount,
+  totalCount,
   onSearchChange,
   onSelectedTypeChange,
   onClearFilters,
@@ -88,7 +90,7 @@ export function PokemonToolbar({
             Visible: <strong>{visibleCount}</strong>
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Loaded: <strong>{loadedCount}</strong>
+            Loaded: <strong>{loadedCount}</strong> / <strong>{totalCount}</strong>
           </Typography>
         </Stack>
       </Stack>

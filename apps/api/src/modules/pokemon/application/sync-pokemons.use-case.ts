@@ -32,6 +32,7 @@ export class SyncPokemonsUseCase {
   private readonly pokemonMapper: PokemonMapper;
   private readonly cacheService: PokemonCacheService;
   private readonly concurrency: number;
+  private inFlightSync: Promise<Pokemon[]> | null = null;
 
   /**
    * Initialize the SyncPokemonsUseCase with dependencies.
@@ -43,11 +44,15 @@ export class SyncPokemonsUseCase {
     this.pokemonMapper = options.pokemonMapper ?? new PokemonMapper();
     this.cacheService =
       options.cacheService ?? new PokemonCacheService(options.pokemonRepository);
-    this.concurrency = options.concurrency ?? 5;
+    this.concurrency = options.concurrency ?? 10;
   }
 
   /**
    * Execute the sync operation.
+   *
+   * If a sync is already in progress, the caller receives the same promise instead
+   * of starting a duplicate fetch. This prevents redundant PokeAPI requests when
+   * the background job and an incoming request both trigger a sync simultaneously.
    *
    * Flow:
    * 1. Fetch total Pokémon count from PokeAPI.
@@ -58,7 +63,19 @@ export class SyncPokemonsUseCase {
    * @returns Array of fully-mapped Pokémon objects ready for client consumption.
    * @throws Error if the PokeAPI is unreachable or other fatal issues occur.
    */
-  async execute(): Promise<Pokemon[]> {
+  execute(): Promise<Pokemon[]> {
+    if (this.inFlightSync) {
+      return this.inFlightSync;
+    }
+
+    this.inFlightSync = this.doSync().finally(() => {
+      this.inFlightSync = null;
+    });
+
+    return this.inFlightSync;
+  }
+
+  private async doSync(): Promise<Pokemon[]> {
     try {
       // Step 1: Get total count.
       const count = await this.pokeApiClient.getPokemonCount();
@@ -66,8 +83,8 @@ export class SyncPokemonsUseCase {
       // Step 2: Get list (summary URLs).
       const list = await this.pokeApiClient.getPokemonList(count);
 
-      // Step 3: Fetch details with concurrency control (default 20 concurrent requests).
-      // This prevents overwhelming PokeAPI and improves overall throughput.
+      // Step 3: Fetch details with concurrency control.
+      // Higher concurrency speeds up the initial warm-up without overwhelming PokeAPI.
       const details = await mapWithConcurrency(
         list.results,
         this.concurrency,

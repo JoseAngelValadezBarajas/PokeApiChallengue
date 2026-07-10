@@ -13,7 +13,7 @@ const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
  * - Disables caching via fetch cache: 'no-store' to ensure fresh data
  * - Throws descriptive errors if the API is misconfigured or returns non-OK status
  *
- * @returns A promise resolving to an array of Pokemon objects from the backend.
+ * @returns A promise resolving to the full array of Pokémon from the backend.
  * @throws Error if NEXT_PUBLIC_API_BASE_URL is not configured or if the API request fails.
  */
 export async function fetchPokemons(): Promise<Pokemon[]> {
@@ -21,7 +21,9 @@ export async function fetchPokemons(): Promise<Pokemon[]> {
     throw new Error(PokemonAPIErrors.BASE_URL_NOT_CONFIGURED);
   }
 
-  const response = await fetch(`${baseUrl.replace(/\/$/, '')}/pokemons`, {
+  const url = `${baseUrl.replace(/\/$/, '')}/pokemons`;
+
+  const response = await fetch(url, {
     cache: 'no-store',
   });
 
